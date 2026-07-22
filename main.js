@@ -654,7 +654,7 @@
   // ------------------------------------------------------------ OTA update (Capgo)
 
   var APP_WEB_VERSION = "1.5.0";
-  var UPDATE_MANIFEST_URL = "https://underwindAdmin.github.io/healthyboss/version.json";
+  var UPDATE_MANIFEST_URL = "https://cdn.jsdelivr.net/gh/underwindAdmin/healthyboss@main/version.json";
 
   function getUpdater() {
     try {
@@ -724,7 +724,9 @@
         flash(t("Already up to date", CN_UI.updateLatest));
       }
     } catch (e) {
-      flash(t("Update failed — try again later", CN_UI.updateFailed));
+      var errMsg = (e && e.message) ? e.message : String(e);
+      flash(t("Update failed", CN_UI.updateFailed) + ": " + errMsg);
+      console.error("OTA update error:", e);
     }
     updBusy = false;
   });
