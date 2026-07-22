@@ -597,6 +597,7 @@
       "<p>" + t("Hover over a colored line on the body to highlight a meridian and see its point codes. Click a point (the small spheres) to read about it here, or click the line itself for an overview of the meridian.", CN_UI.welcomeP2) + "</p>" +
       "<p>" + t("You can also hover the legend on the left to locate a meridian, and click it to read its description.", CN_UI.welcomeP3) + "</p>" +
       '<p class="hint">' + t("Educational reference only — not a guide for treatment.", CN_UI.hint) + "</p>";
+    panelContent.innerHTML += '<p class="hint" style="opacity:0.5;margin-top:12px;">v' + APP_WEB_VERSION + '</p>';
   }
 
   // Create language toggle buttons
@@ -653,7 +654,7 @@
   setUI(getUI(), false);
   // ------------------------------------------------------------ OTA update (Capgo)
 
-  var APP_WEB_VERSION = "1.5.0";
+  var APP_WEB_VERSION = "1.5.1";
   var UPDATE_MANIFEST_URL = "https://cdn.jsdelivr.net/gh/underwindAdmin/healthyboss@main/version.json";
 
   function getUpdater() {

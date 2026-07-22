@@ -40,10 +40,12 @@ echo "  Zip OK: $(du -h "${ZIP_NAME}" | cut -f1)"
 
 # Step 5: generate version.json
 echo "[5/5] Generating version.json ..."
+mkdir -p dist
+cp "${ZIP_NAME}" dist/
 cat > version.json << VEOF
 {
   "version": "${VERSION}",
-  "zipUrl": "https://github.com/${REPO}/releases/download/web-v${VERSION}/${ZIP_NAME}",
+  "zipUrl": "https://cdn.jsdelivr.net/gh/${REPO}@main/dist/${ZIP_NAME}",
   "notes": "Web bundle v${VERSION}",
   "notesCn": "网页包 v${VERSION}",
   "minNativeVersion": "1.5.0"
@@ -53,9 +55,11 @@ VEOF
 echo ""
 echo "=== Done ==="
 echo "  Bundle: ${ZIP_NAME}"
+echo "  Dist:   dist/${ZIP_NAME}"
 echo "  Manifest: version.json"
 echo ""
 echo "Next steps:"
-echo "  1. Create GitHub Release: web-v${VERSION}"
-echo "  2. Upload ${ZIP_NAME} to the release"
-echo "  3. Commit & push version.json to main"
+echo "  1. Commit & push version.json + dist/ to main"
+echo "  2. Purge jsDelivr cache:"
+echo "     curl https://purge.jsdelivr.net/gh/${REPO}@main/version.json"
+echo "     curl https://purge.jsdelivr.net/gh/${REPO}@main/dist/${ZIP_NAME}"
