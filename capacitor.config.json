@@ -1,0 +1,20 @@
+{
+  "appId": "com.bo3d.acupoints3d",
+  "appName": "Acupoints 3D",
+  "webDir": "www",
+  "android": {
+    "allowMixedContent": false
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 10000,
+      "launchAutoHide": false,
+      "backgroundColor": "#101216",
+      "androidScaleType": "CENTER_CROP"
+    },
+    "CapacitorUpdater": {
+      "autoUpdate": "off",
+      "appReadyTimeout": 10000
+    }
+  }
+}

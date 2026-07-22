@@ -5,10 +5,137 @@
   var container = document.getElementById("scene");
   var tooltip = document.getElementById("tooltip");
   var panelContent = document.getElementById("panel-content");
-  var legendList = document.getElementById("legend-list");
-  var statusEl = document.getElementById("status");
+ var legendList = document.getElementById("legend-list");
+ var statusEl = document.getElementById("status");
 
-  // ---------------------------------------------------------------- scene
+  // ------------------------------------------------------------ i18n
+
+  var lang = (function () {
+    try { return localStorage.getItem("acupoints-lang") || "en"; } catch (e) { return "en"; }
+  
+  // ------------------------------------------------------------- layer toggles
+  var layerToggles = document.getElementById("layer-toggles");
+  if (layerToggles) {
+    var layerState = {
+      body:     localStorage.getItem("acupoints-layer-body")     !== "off",
+      meridians: localStorage.getItem("acupoints-layer-meridians") !== "off",
+      points:   localStorage.getItem("acupoints-layer-points")   !== "off"
+    };
+
+    function applyLayerState() {
+      // Body opacity
+      body.traverse(function (o) {
+        if (o.isMesh && o.material && o.material.color && o.material.color.getHex() !== 0 && !o.userData || o.userData && o.userData.kind !== "meridian" && o.userData.kind !== "point") return;
+        if (o.isMesh && o.material) {
+          // Body meshes: toggle opacity
+          if (o.parent === body || o.parent && o.parent.parent === body) {
+            o.material.transparent = !layerState.body;
+            o.material.opacity = layerState.body ? 1.0 : 0.15;
+          }
+        }
+      });
+      // Simpler approach: just toggle the body group opacity
+      body.traverse(function (o) {
+        if (o.isMesh && !o.userData) {
+          o.material.transparent = true;
+          o.material.opacity = layerState.body ? 1.0 : 0.18;
+          o.material.needsUpdate = true;
+        }
+      });
+
+      // Meridians
+      MERIDIANS.forEach(function (m) {
+        var v = visuals[m.id];
+        if (!v) return;
+        v.tubes.forEach(function (t) { t.visible = layerState.meridians; });
+        v.points.forEach(function (p) { p.visible = layerState.points; });
+      });
+
+      // Update toggle buttons
+      layerToggles.querySelectorAll(".layer-btn").forEach(function (btn) {
+        var layer = btn.dataset.layer;
+        btn.classList.toggle("active", layerState[layer]);
+      });
+    }
+
+    layerToggles.addEventListener("click", function (e) {
+      var btn = e.target.closest(".layer-btn");
+      if (!btn) return;
+      var layer = btn.dataset.layer;
+      layerState[layer] = !layerState[layer];
+      localStorage.setItem("acupoints-layer-" + layer, layerState[layer] ? "on" : "off");
+      applyLayerState();
+    });
+
+    // Delay so body group is ready
+    setTimeout(applyLayerState, 800);
+  }
+
+})();
+
+  // -------------------------------------------------------- splash hide (Capacitor)
+
+  // minimum splash display: 5 seconds
+  let _splashStart = Date.now();
+  const MIN_SPLASH_MS = 10000;
+
+  function hideSplash() {
+    const elapsed = Date.now() - _splashStart;
+    const delay = Math.max(0, MIN_SPLASH_MS - elapsed);
+    const doHide = function() {
+      try {
+        if (typeof Capacitor !== "undefined" && Capacitor.Plugins && Capacitor.Plugins.SplashScreen) {
+          Capacitor.Plugins.SplashScreen.hide();
+        }
+      } catch(e) {
+        // not running inside Capacitor (e.g. dev server) — safe to ignore
+      }
+    };
+    if (delay > 0) {
+      setTimeout(doHide, delay);
+    } else {
+      doHide();
+    }
+  }
+
+  // called from native skip button
+  window.__skipSplash = function() {
+    // force minimum time elapsed so hideSplash fires immediately
+    _splashStart = Date.now() - MIN_SPLASH_MS - 1;
+    hideSplash();
+  };
+
+  function t(en, cn) { return lang === "cn" ? cn : en; }
+
+  var CN_UI = {
+    welcomeTitle: "欢迎",
+    welcomeP1: "这是一个交互式图鉴，在三维人体模型上展示了十四正经及其全部361个穴位。",
+    welcomeP2: "将鼠标悬停在身体上的彩色线条上，可高亮显示一条经络并查看其穴位代码。点击穴位（小球体）可在此处阅读详细内容，点击经络线可查看该经络的总览。",
+    welcomeP3: "你也可以将鼠标悬停在左侧图例上定位经络，点击图例可阅读其描述。",
+    hint: "仅供参考学习——不作为治疗指南。",
+    loadModel: "正在加载模型…",
+    loadFallback: "（简化模型——模型加载失败）",
+    dragHint: "拖拽旋转 · 滚轮缩放 · 悬停经络 · 点击穴位",
+    pointsLabel: "穴",
+    meridian: "经",
+    pointsSection: "穴位",
+    clickOne: "（点击查看）",
+    otherPoints: "本经其他穴位",
+  };
+
+  var ELEMENT_CN = {
+    Metal: "金",
+    Wood: "木",
+    Water: "水",
+    Fire: "火",
+    Earth: "土",
+    Extraordinary: "奇经",
+  };
+  function elementLabel(m) {
+    return lang === "cn" ? (ELEMENT_CN[m.element] || m.element) : m.element + " element";
+  }
+
+ // ---------------------------------------------------------------- scene
 
   var scene = new THREE.Scene();
   scene.background = new THREE.Color(0x101216);
@@ -188,12 +315,13 @@
   // ----------------------------------------------------------- load model
 
   function start() {
-    statusEl.textContent = "Loading model…";
+    statusEl.textContent = t("Loading model…", CN_UI.loadModel);
     var fail = function (err) {
       console.error("Model load failed, using fallback figure:", err);
       buildFigure();
       buildMeridians(null);
-      statusEl.textContent = "(simplified figure — model failed to load)";
+      hideSplash();
+      statusEl.textContent = t("(simplified figure — model failed to load)", CN_UI.loadFallback);
     };
     try {
       // The GLB is embedded as base64 (assets/xbot-data.js) and parsed
@@ -205,6 +333,7 @@
         var prep = AcuModel.prepare(gltf.scene, skin);
         body.add(prep.group);
         buildMeridians(prep.snap);
+        hideSplash();
         statusEl.textContent = "";
       }, fail);
     } catch (err) { fail(err); }
@@ -239,6 +368,11 @@
     legendList.querySelectorAll("li").forEach(function (li) {
       li.classList.toggle("active", li.dataset.mid === active);
     });
+    if (mstrip) {
+      mstrip.querySelectorAll(".mstrip-item").forEach(function (b) {
+        b.classList.toggle("active", b.dataset.mid === active);
+      });
+    }
   }
 
   function setSelected(mid, code) {
@@ -248,7 +382,7 @@
 
   // ----------------------------------------------------------------- panel
 
-  function colorHex(m) {
+  function cssColor(m) { return MERIDIAN_CSS_COLORS[m.id] || "#5b8cff"; } function colorHex(m) {
     return "#" + m.color.toString(16).padStart(6, "0");
   }
 
@@ -259,28 +393,33 @@
     }).join("") + "</div>";
   }
 
-  function meridianHeader(m) {
+ function meridianHeader(m) {
+    var label = t(m.name, m.nameCN);
+    var full = t(m.fullName, m.fullNameCN);
+    var elem = elementLabel(m);
+    var ptsLabel = t("points", CN_UI.pointsLabel);
+    var desc = t(m.description, m.descriptionCN);
     return '<div class="m-head">' +
       '<span class="dot" style="background:' + colorHex(m) + '"></span>' +
-      "<h2>" + m.name + " <small>(" + m.id + ")</small></h2></div>" +
-      '<p class="m-sub">' + m.fullName + " · " + m.element + " element · " +
-      m.totalPoints + " points</p>";
-  }
+      "<h2>" + label + " <small>(" + m.id + ")</small></h2></div>" +
+      '<p class="m-sub">' + full + " · " + elem + " · " +
+      m.totalPoints + " " + ptsLabel + "</p>";
+ }
 
-  function showMeridian(m) {
+ function showMeridian(m) {
     panelContent.innerHTML = meridianHeader(m) +
-      "<p>" + m.description + "</p>" +
-      '<h3>Points <span class="hint">(click one)</span></h3>' + chipRow(m, null);
+      "<p>" + t(m.description, m.descriptionCN) + "</p>" +
+      "<h3>" + t("Points", CN_UI.pointsSection) + ' <span class="hint">' + t("(click one)", CN_UI.clickOne) + "</span></h3>" + chipRow(m, null);
   }
 
   function showPoint(m, p) {
     panelContent.innerHTML = meridianHeader(m) +
-      '<p class="m-desc">' + m.description + "</p>" +
+      '<p class="m-desc">' + t(m.description, m.descriptionCN) + "</p>" +
       '<div class="point-card" style="border-color:' + colorHex(m) + '">' +
-      "<h3>" + p.code + " — " + p.name + "</h3>" +
-      '<p class="p-en">“' + p.en + "”</p>" +
-      "<p>" + p.desc + "</p></div>" +
-      "<h3>Other points on this meridian</h3>" + chipRow(m, p.code);
+      "<h3>" + p.code + " — " + t(p.name, (p.nameCN || p.name)) + "</h3>" +
+      '<p class="p-en">“' + t(p.en, (p.nameCN || p.name)) + "”</p>" +
+      "<p>" + t(p.desc, p.descCN || p.desc) + "</p></div>" +
+      "<h3>" + t("Other points on this meridian", CN_UI.otherPoints) + "</h3>" + chipRow(m, p.code);
   }
 
   panelContent.addEventListener("click", function (e) {
@@ -295,14 +434,35 @@
 
   MERIDIANS.forEach(function (m) {
     var li = document.createElement("li");
-    li.dataset.mid = m.id;
-    li.innerHTML = '<span class="dot" style="background:' + colorHex(m) + '"></span>' +
-      "<b>" + m.id + "</b> " + m.name;
+    li.dataset.mid = m.id; li.style.setProperty("--mc", cssColor(m));
+    var setLabel = function () {
+      li.innerHTML = '<span class="dot" style="background:' + colorHex(m) + '"></span>' +
+        "<b>" + m.id + "</b> " + t(m.name, m.nameCN);
+    };
+    setLabel();
     li.addEventListener("mouseenter", function () { legendId = m.id; applyHighlight(); });
     li.addEventListener("mouseleave", function () { legendId = null; applyHighlight(); });
     li.addEventListener("click", function () { showMeridian(m); });
     legendList.appendChild(li);
+    li._setLabel = setLabel;
   });
+
+  function refreshLegend() {
+    legendList.querySelectorAll("li").forEach(function (li) { if (li._setLabel) li._setLabel(); });
+  }
+
+  // Mobile meridian strip (Style A only; hidden in classic via CSS)
+  var mstrip = document.createElement("nav");
+  mstrip.id = "mstrip";
+  MERIDIANS.forEach(function (m) {
+    var b = document.createElement("button");
+    b.className = "mstrip-item";
+    b.dataset.mid = m.id; b.style.setProperty("--mc", cssColor(m));
+    b.innerHTML = '<span class="dot" style="background:' + colorHex(m) + '"></span><b>' + m.id + "</b>";
+    b.addEventListener("click", function () { showMeridian(m); legendId = m.id; applyHighlight(); });
+    mstrip.appendChild(b);
+  });
+  container.appendChild(mstrip);
 
   // ------------------------------------------------------------ picking
 
@@ -385,8 +545,11 @@
         return hit.kind === "point" && pt.code === hit.code
           ? "<b>" + pt.code + "</b>" : pt.code;
       }).join(" · ");
+      var mname = t(m.name, m.nameCN);
+      var merWord = lang === "cn" ? "" : "meridian";
+      var ptsWord = t("points", CN_UI.pointsLabel);
       tooltip.innerHTML = '<span class="dot" style="background:' + colorHex(m) + '"></span>' +
-        "<b>" + m.name + " meridian</b> (" + m.id + ", " + m.totalPoints + " points)<br>" +
+        "<b>" + mname + " " + merWord + "</b> (" + m.id + ", " + m.totalPoints + " " + ptsWord + ")<br>" +
         '<span class="codes">' + codes + "</span>";
       tooltip.style.display = "block";
       var tx = Math.min(e.clientX + 16, window.innerWidth - tooltip.offsetWidth - 8);
@@ -440,10 +603,234 @@
   window.addEventListener("resize", resize);
   resize();
 
+  // ----------------------------------------------------- language toggle
+
+  var dragHintEl = document.querySelector("#titlebar p");
+
+  function setLang(l) {
+    lang = l;
+    try { localStorage.setItem("acupoints-lang", l); } catch (e) {}
+    // Update titlebar hint
+    if (dragHintEl) dragHintEl.textContent = t("Drag to rotate · Scroll to zoom · Hover a meridian · Click a point", CN_UI.dragHint);
+    // Update welcome panel if still showing default
+    var h2 = panelContent.querySelector(".m-head h2");
+    if (h2 && !h2.querySelector("small")) {
+      showWelcome();
+    }
+    // Refresh legend labels
+    refreshLegend();
+    // If a meridian is showing, re-render it
+    var currentH2 = panelContent.querySelector(".m-head h2");
+    if (currentH2) {
+      var smallEl = currentH2.querySelector("small");
+      if (smallEl) {
+        var mid = smallEl.textContent.replace(/[()]/g, "");
+        var curM = meridianById[mid];
+        if (curM && selected) {
+          var curP = pointByCode(curM, selected.code);
+          if (curP) showPoint(curM, curP);
+          else showMeridian(curM);
+        } else if (curM) {
+          showMeridian(curM);
+        }
+      }
+    }
+  }
+
+  function showWelcome() {
+    panelContent.innerHTML =
+      '<div class="welcome-hero" aria-hidden="true"></div>' +
+      '<div class="m-head"><h2>' + t("Welcome", CN_UI.welcomeTitle) + "</h2></div>" +
+      "<p>" + t("This is an interactive atlas of the 14 principal acupuncture meridians and all 361 of their points, drawn on a 3D human model.", CN_UI.welcomeP1) + "</p>" +
+      "<p>" + t("Hover over a colored line on the body to highlight a meridian and see its point codes. Click a point (the small spheres) to read about it here, or click the line itself for an overview of the meridian.", CN_UI.welcomeP2) + "</p>" +
+      "<p>" + t("You can also hover the legend on the left to locate a meridian, and click it to read its description.", CN_UI.welcomeP3) + "</p>" +
+      '<p class="hint">' + t("Educational reference only — not a guide for treatment.", CN_UI.hint) + "</p>";
+  }
+
+  // Create language toggle buttons
+  var langGroup = document.createElement("span");
+  langGroup.id = "lang-group";
+
+  var cnBtn = document.createElement("button");
+  cnBtn.className = "lang-btn" + (lang === "cn" ? " lang-active" : "");
+  cnBtn.textContent = "中文";
+  cnBtn.addEventListener("click", function () {
+    if (lang !== "cn") { updateLangBtns("cn"); setLang("cn"); }
+  });
+
+  var enBtn = document.createElement("button");
+  enBtn.className = "lang-btn" + (lang === "en" ? " lang-active" : "");
+  enBtn.textContent = "EN";
+  enBtn.addEventListener("click", function () {
+    if (lang !== "en") { updateLangBtns("en"); setLang("en"); }
+  });
+
+  langGroup.appendChild(cnBtn);
+  langGroup.appendChild(enBtn);
+  document.getElementById("scene").appendChild(langGroup);
+
+  // ------------------------------------------------------------ UI theme
+
+  function getUI() {
+    try {
+      var q = new URLSearchParams(window.location.search).get("ui");
+      if (q === "a" || q === "classic") return q;
+      return localStorage.getItem("acupoints-ui") || "classic";
+    } catch (e) { return "classic"; }
+  }
+
+  function setUI(u, persist) {
+    document.body.setAttribute("data-ui", u);
+    if (persist) { try { localStorage.setItem("acupoints-ui", u); } catch (e) {} }
+    scene.background.set(u === "a" ? 0x0c0e11 : 0x101216);
+    uiBtn.classList.toggle("ui-on", u === "a");
+    uiBtn.title = u === "a"
+      ? t("Switch to classic UI", "\u5207\u56de\u7ecf\u5178\u754c\u9762")
+      : t("Try the new UI (Style A)", "\u4f53\u9a8c\u65b0\u754c\u9762 (A)");
+  }
+
+  var uiBtn = document.createElement("button");
+  uiBtn.id = "ui-toggle";
+  uiBtn.className = "lang-btn ui-btn";
+  uiBtn.setAttribute("aria-label", "Toggle UI style");
+  uiBtn.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9L12 3z"/><circle cx="19" cy="17.5" r="2.2"/></svg>';
+  uiBtn.addEventListener("click", function () {
+    setUI(document.body.getAttribute("data-ui") === "a" ? "classic" : "a", true);
+  });
+  langGroup.appendChild(uiBtn);
+  setUI(getUI(), false);
+
+  function updateLangBtns(l) {
+    cnBtn.className = "lang-btn" + (l === "cn" ? " lang-active" : "");
+    enBtn.className = "lang-btn" + (l === "en" ? " lang-active" : "");
+  }
+
+  // Apply initial language
+  setLang(lang);
+  showWelcome();
+
   start();
 
   (function animate() {
     requestAnimationFrame(animate);
     renderer.render(scene, camera);
-  })();
+  
+  // ------------------------------------------------------------- layer toggles
+  var layerToggles = document.getElementById("layer-toggles");
+  if (layerToggles) {
+    var layerState = {
+      body:     localStorage.getItem("acupoints-layer-body")     !== "off",
+      meridians: localStorage.getItem("acupoints-layer-meridians") !== "off",
+      points:   localStorage.getItem("acupoints-layer-points")   !== "off"
+    };
+
+    function applyLayerState() {
+      // Body opacity
+      body.traverse(function (o) {
+        if (o.isMesh && o.material && o.material.color && o.material.color.getHex() !== 0 && !o.userData || o.userData && o.userData.kind !== "meridian" && o.userData.kind !== "point") return;
+        if (o.isMesh && o.material) {
+          // Body meshes: toggle opacity
+          if (o.parent === body || o.parent && o.parent.parent === body) {
+            o.material.transparent = !layerState.body;
+            o.material.opacity = layerState.body ? 1.0 : 0.15;
+          }
+        }
+      });
+      // Simpler approach: just toggle the body group opacity
+      body.traverse(function (o) {
+        if (o.isMesh && !o.userData) {
+          o.material.transparent = true;
+          o.material.opacity = layerState.body ? 1.0 : 0.18;
+          o.material.needsUpdate = true;
+        }
+      });
+
+      // Meridians
+      MERIDIANS.forEach(function (m) {
+        var v = visuals[m.id];
+        if (!v) return;
+        v.tubes.forEach(function (t) { t.visible = layerState.meridians; });
+        v.points.forEach(function (p) { p.visible = layerState.points; });
+      });
+
+      // Update toggle buttons
+      layerToggles.querySelectorAll(".layer-btn").forEach(function (btn) {
+        var layer = btn.dataset.layer;
+        btn.classList.toggle("active", layerState[layer]);
+      });
+    }
+
+    layerToggles.addEventListener("click", function (e) {
+      var btn = e.target.closest(".layer-btn");
+      if (!btn) return;
+      var layer = btn.dataset.layer;
+      layerState[layer] = !layerState[layer];
+      localStorage.setItem("acupoints-layer-" + layer, layerState[layer] ? "on" : "off");
+      applyLayerState();
+    });
+
+    // Delay so body group is ready
+    setTimeout(applyLayerState, 800);
+  }
+
+})();
+
+  // ------------------------------------------------------------- layer toggles
+  var layerToggles = document.getElementById("layer-toggles");
+  if (layerToggles) {
+    var layerState = {
+      body:     localStorage.getItem("acupoints-layer-body")     !== "off",
+      meridians: localStorage.getItem("acupoints-layer-meridians") !== "off",
+      points:   localStorage.getItem("acupoints-layer-points")   !== "off"
+    };
+
+    function applyLayerState() {
+      // Body opacity
+      body.traverse(function (o) {
+        if (o.isMesh && o.material && o.material.color && o.material.color.getHex() !== 0 && !o.userData || o.userData && o.userData.kind !== "meridian" && o.userData.kind !== "point") return;
+        if (o.isMesh && o.material) {
+          // Body meshes: toggle opacity
+          if (o.parent === body || o.parent && o.parent.parent === body) {
+            o.material.transparent = !layerState.body;
+            o.material.opacity = layerState.body ? 1.0 : 0.15;
+          }
+        }
+      });
+      // Simpler approach: just toggle the body group opacity
+      body.traverse(function (o) {
+        if (o.isMesh && !o.userData) {
+          o.material.transparent = true;
+          o.material.opacity = layerState.body ? 1.0 : 0.18;
+          o.material.needsUpdate = true;
+        }
+      });
+
+      // Meridians
+      MERIDIANS.forEach(function (m) {
+        var v = visuals[m.id];
+        if (!v) return;
+        v.tubes.forEach(function (t) { t.visible = layerState.meridians; });
+        v.points.forEach(function (p) { p.visible = layerState.points; });
+      });
+
+      // Update toggle buttons
+      layerToggles.querySelectorAll(".layer-btn").forEach(function (btn) {
+        var layer = btn.dataset.layer;
+        btn.classList.toggle("active", layerState[layer]);
+      });
+    }
+
+    layerToggles.addEventListener("click", function (e) {
+      var btn = e.target.closest(".layer-btn");
+      if (!btn) return;
+      var layer = btn.dataset.layer;
+      layerState[layer] = !layerState[layer];
+      localStorage.setItem("acupoints-layer-" + layer, layerState[layer] ? "on" : "off");
+      applyLayerState();
+    });
+
+    // Delay so body group is ready
+    setTimeout(applyLayerState, 800);
+  }
+
 })();

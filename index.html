@@ -2,9 +2,10 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>Acupoints 3D — Learn the Meridians</title>
   <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style-a.css">
 </head>
 <body>
   <main id="app">
@@ -21,16 +22,12 @@
     </div>
     <aside id="panel">
       <div id="panel-content">
-        <div class="m-head"><h2>Welcome</h2></div>
-        <p>This is an interactive atlas of the 14 principal acupuncture meridians
-        and all 361 of their points, drawn on a 3D human model.</p>
-        <p><b>Hover</b> over a colored line on the body to highlight a meridian and
-        see its point codes. <b>Click</b> a point (the small spheres) to read about
-        it here, or click the line itself for an overview of the meridian.</p>
-        <p>You can also hover the legend on the left to locate a meridian, and click
-        it to read its description.</p>
-        <p class="hint">Educational reference only — not a guide for treatment.</p>
-      </div>
+      <div class="m-head"><h2></h2></div>
+      <div class="layer-toggles" id="layer-toggles">
+        <button class="layer-btn active" data-layer="body" title="Toggle body opacity">🦴</button>
+        <button class="layer-btn active" data-layer="meridians" title="Toggle meridians">🌐</button>
+        <button class="layer-btn active" data-layer="points" title="Toggle acupoints">📍</button>
+      </div>      </div>
     </aside>
   </main>
   <script src="assets/three.min.js"></script>
@@ -38,6 +35,7 @@
   <script src="assets/model-data.js"></script>
   <script src="model-utils.js"></script>
   <script src="data.js"></script>
+  <script src="meridian-colors.js"></script>
   <script src="main.js"></script>
 </body>
 </html>

@@ -1,2 +1,10 @@
 .herenow/
 .DS_Store
+node_modules/
+www/
+android/
+ios/
+*.apk
+*.bak
+*.bak2
+.verify-data.cjs

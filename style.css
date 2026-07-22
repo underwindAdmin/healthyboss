@@ -18,11 +18,31 @@ body {
 /* ---------- title ---------- */
 
 #titlebar {
-  position: absolute; top: 16px; left: 20px; z-index: 2;
+  position: absolute; top: calc(16px + env(safe-area-inset-top, 0px)); left: calc(20px + env(safe-area-inset-left, 0px)); z-index: 2;
   pointer-events: none;
 }
 #titlebar h1 { font-size: 20px; font-weight: 600; letter-spacing: 0.5px; color: #f0f2f6; }
 #titlebar p { font-size: 12px; color: #8b909c; margin-top: 3px; }
+
+
+#lang-group {
+  position: absolute; top: calc(16px + env(safe-area-inset-top, 0px)); right: calc(16px + env(safe-area-inset-right, 0px)); z-index: 3;
+  display: flex; gap: 4px; pointer-events: auto;
+}
+.lang-btn {
+  background: rgba(38, 43, 54, 0.85); border: 1px solid #3a4050;
+  color: #6b7280; font-size: 11px; font-weight: 500;
+  padding: 4px 8px; border-radius: 6px; cursor: pointer;
+  font-family: inherit; backdrop-filter: blur(4px);
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.lang-btn:hover { background: #2e3648; color: #b9bec9; }
+.lang-btn.lang-active {
+  background: rgba(58, 79, 235, 0.18); border-color: #6b7cff;
+  color: #eef1f6;
+}
+
+
 #titlebar #status { color: #6b7280; font-style: italic; }
 
 /* ---------- legend ---------- */
@@ -65,7 +85,7 @@ body {
   width: 350px; flex-shrink: 0; overflow-y: auto;
   background: #15181f; border-left: 1px solid #262b36;
 }
-#panel-content { padding: 22px 20px 40px; }
+#panel-content { padding: calc(22px + env(safe-area-inset-top, 0px)) 20px calc(40px + env(safe-area-inset-bottom, 0px)); }
 
 .m-head { display: flex; align-items: center; gap: 9px; }
 .m-head .dot { width: 13px; height: 13px; }
@@ -107,9 +127,9 @@ body {
     width: 100%; height: 42vh; height: 42dvh; flex: none;
     border-left: none; border-top: 1px solid #262b36;
   }
-  #panel-content { padding: 14px 14px 30px; }
+  #panel-content { padding: 14px 14px calc(30px + env(safe-area-inset-bottom, 0px)); }
 
-  #titlebar { top: 10px; left: 12px; }
+  #titlebar { top: calc(10px + env(safe-area-inset-top, 0px)); left: calc(12px + env(safe-area-inset-left, 0px)); }
   #titlebar h1 { font-size: 16px; }
   #titlebar p { font-size: 10px; }
 
