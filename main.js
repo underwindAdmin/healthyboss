@@ -12,66 +12,7 @@
 
   var lang = (function () {
     try { return localStorage.getItem("acupoints-lang") || "en"; } catch (e) { return "en"; }
-  
-  // ------------------------------------------------------------- layer toggles
-  var layerToggles = document.getElementById("layer-toggles");
-  if (layerToggles) {
-    var layerState = {
-      body:     localStorage.getItem("acupoints-layer-body")     !== "off",
-      meridians: localStorage.getItem("acupoints-layer-meridians") !== "off",
-      points:   localStorage.getItem("acupoints-layer-points")   !== "off"
-    };
-
-    function applyLayerState() {
-      // Body opacity
-      body.traverse(function (o) {
-        if (o.isMesh && o.material && o.material.color && o.material.color.getHex() !== 0 && !o.userData || o.userData && o.userData.kind !== "meridian" && o.userData.kind !== "point") return;
-        if (o.isMesh && o.material) {
-          // Body meshes: toggle opacity
-          if (o.parent === body || o.parent && o.parent.parent === body) {
-            o.material.transparent = !layerState.body;
-            o.material.opacity = layerState.body ? 1.0 : 0.15;
-          }
-        }
-      });
-      // Simpler approach: just toggle the body group opacity
-      body.traverse(function (o) {
-        if (o.isMesh && !o.userData) {
-          o.material.transparent = true;
-          o.material.opacity = layerState.body ? 1.0 : 0.18;
-          o.material.needsUpdate = true;
-        }
-      });
-
-      // Meridians
-      MERIDIANS.forEach(function (m) {
-        var v = visuals[m.id];
-        if (!v) return;
-        v.tubes.forEach(function (t) { t.visible = layerState.meridians; });
-        v.points.forEach(function (p) { p.visible = layerState.points; });
-      });
-
-      // Update toggle buttons
-      layerToggles.querySelectorAll(".layer-btn").forEach(function (btn) {
-        var layer = btn.dataset.layer;
-        btn.classList.toggle("active", layerState[layer]);
-      });
-    }
-
-    layerToggles.addEventListener("click", function (e) {
-      var btn = e.target.closest(".layer-btn");
-      if (!btn) return;
-      var layer = btn.dataset.layer;
-      layerState[layer] = !layerState[layer];
-      localStorage.setItem("acupoints-layer-" + layer, layerState[layer] ? "on" : "off");
-      applyLayerState();
-    });
-
-    // Delay so body group is ready
-    setTimeout(applyLayerState, 800);
-  }
-
-})();
+  })();
 
   // -------------------------------------------------------- splash hide (Capacitor)
 
@@ -116,6 +57,16 @@
     loadModel: "正在加载模型…",
     loadFallback: "（简化模型——模型加载失败）",
     dragHint: "拖拽旋转 · 滚轮缩放 · 悬停经络 · 点击穴位",
+    updateCheck: "↻ 检查更新",
+    updateChecking: "检查中…",
+    updateLatest: "已是最新 ✓",
+    updateNew: "发现新版本",
+    updateDownloading: "下载中…",
+    updateRestart: "重启更新?",
+    updateFailed: "更新失败",
+    updateUnsupported: "当前环境不支持热更新",
+    updateVersion: "当前版本",
+    updateNow: "现在下载更新吗？",
     pointsLabel: "穴",
     meridian: "经",
     pointsSection: "穴位",
@@ -612,6 +563,7 @@
     try { localStorage.setItem("acupoints-lang", l); } catch (e) {}
     // Update titlebar hint
     if (dragHintEl) dragHintEl.textContent = t("Drag to rotate · Scroll to zoom · Hover a meridian · Click a point", CN_UI.dragHint);
+    if (typeof refreshUpdBtn === "function" && !updBusy) refreshUpdBtn();
     // Update welcome panel if still showing default
     var h2 = panelContent.querySelector(".m-head h2");
     if (h2 && !h2.querySelector("small")) {
@@ -699,6 +651,87 @@
   });
   langGroup.appendChild(uiBtn);
   setUI(getUI(), false);
+  // ------------------------------------------------------------ OTA update (Capgo)
+
+  var APP_WEB_VERSION = "1.5.0";
+  var UPDATE_MANIFEST_URL = "https://underwindAdmin.github.io/healthyboss/version.json";
+
+  function getUpdater() {
+    try {
+      if (typeof Capacitor !== "undefined" && Capacitor.Plugins && Capacitor.Plugins.CapacitorUpdater)
+        return Capacitor.Plugins.CapacitorUpdater;
+    } catch (e) {}
+    return null;
+  }
+
+  (function notifyReady() {
+    var up = getUpdater();
+    if (up && up.notifyAppReady) { up.notifyAppReady().catch(function () {}); }
+  })();
+
+  function compareVersions(a, b) {
+    var pa = String(a).split("."), pb = String(b).split(".");
+    for (var i = 0; i < 3; i++) {
+      var na = parseInt(pa[i] || "0", 10), nb = parseInt(pb[i] || "0", 10);
+      if (na !== nb) return na > nb ? 1 : -1;
+    }
+    return 0;
+  }
+
+  var updBtn = document.createElement("button");
+  updBtn.className = "lang-btn upd-btn";
+  updBtn.title = t("Current version", CN_UI.updateVersion) + " " + APP_WEB_VERSION;
+  updBtn.setAttribute("aria-label", "Check for update");
+
+  var updBusy = false;
+  var flashTimer = null;
+
+  function refreshUpdBtn(msg) {
+    updBtn.textContent = msg || t("↻ Update", CN_UI.updateCheck);
+  }
+
+  function flash(msg) {
+    refreshUpdBtn(msg);
+    clearTimeout(flashTimer);
+    flashTimer = setTimeout(function () { refreshUpdBtn(); }, 3500);
+  }
+
+  updBtn.addEventListener("click", async function () {
+    if (updBusy) return;
+    var up = getUpdater();
+    if (!up) { flash(t("Update requires the installed app", CN_UI.updateUnsupported)); return; }
+    updBusy = true;
+    refreshUpdBtn(t("Checking…", CN_UI.updateChecking));
+    try {
+      var res = await fetch(UPDATE_MANIFEST_URL + "?t=" + Date.now());
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      var manifest = await res.json();
+      if (!manifest.version || !manifest.zipUrl) throw new Error("Malformed manifest");
+      if (compareVersions(manifest.version, APP_WEB_VERSION) > 0) {
+        var notes = lang === "cn" ? (manifest.notesCn || manifest.notes || "") : (manifest.notes || "");
+        var msg = t("New version ", CN_UI.updateNew) + manifest.version;
+        if (notes) msg += "\n\n" + notes;
+        msg += "\n\n" + t("Download now?", CN_UI.updateNow);
+        if (window.confirm(msg)) {
+          refreshUpdBtn(t("Downloading…", CN_UI.updateDownloading));
+          var bundle = await up.download({ version: manifest.version, url: manifest.zipUrl });
+          if (window.confirm(t("Download complete. Restart to apply?", CN_UI.updateRestart))) {
+            try { await up.set(bundle); return; } catch (e2) {}
+          }
+        }
+        refreshUpdBtn();
+      } else {
+        flash(t("Already up to date", CN_UI.updateLatest));
+      }
+    } catch (e) {
+      flash(t("Update failed — try again later", CN_UI.updateFailed));
+    }
+    updBusy = false;
+  });
+
+  langGroup.appendChild(updBtn);
+  refreshUpdBtn();
+
 
   function updateLangBtns(l) {
     cnBtn.className = "lang-btn" + (l === "cn" ? " lang-active" : "");
@@ -714,29 +747,19 @@
   (function animate() {
     requestAnimationFrame(animate);
     renderer.render(scene, camera);
-  
+  })();
+
   // ------------------------------------------------------------- layer toggles
+
   var layerToggles = document.getElementById("layer-toggles");
   if (layerToggles) {
     var layerState = {
-      body:     localStorage.getItem("acupoints-layer-body")     !== "off",
+      body:      localStorage.getItem("acupoints-layer-body")      !== "off",
       meridians: localStorage.getItem("acupoints-layer-meridians") !== "off",
-      points:   localStorage.getItem("acupoints-layer-points")   !== "off"
+      points:    localStorage.getItem("acupoints-layer-points")    !== "off"
     };
 
     function applyLayerState() {
-      // Body opacity
-      body.traverse(function (o) {
-        if (o.isMesh && o.material && o.material.color && o.material.color.getHex() !== 0 && !o.userData || o.userData && o.userData.kind !== "meridian" && o.userData.kind !== "point") return;
-        if (o.isMesh && o.material) {
-          // Body meshes: toggle opacity
-          if (o.parent === body || o.parent && o.parent.parent === body) {
-            o.material.transparent = !layerState.body;
-            o.material.opacity = layerState.body ? 1.0 : 0.15;
-          }
-        }
-      });
-      // Simpler approach: just toggle the body group opacity
       body.traverse(function (o) {
         if (o.isMesh && !o.userData) {
           o.material.transparent = true;
@@ -744,19 +767,14 @@
           o.material.needsUpdate = true;
         }
       });
-
-      // Meridians
       MERIDIANS.forEach(function (m) {
         var v = visuals[m.id];
         if (!v) return;
         v.tubes.forEach(function (t) { t.visible = layerState.meridians; });
         v.points.forEach(function (p) { p.visible = layerState.points; });
       });
-
-      // Update toggle buttons
       layerToggles.querySelectorAll(".layer-btn").forEach(function (btn) {
-        var layer = btn.dataset.layer;
-        btn.classList.toggle("active", layerState[layer]);
+        btn.classList.toggle("active", layerState[btn.dataset.layer]);
       });
     }
 
@@ -765,67 +783,7 @@
       if (!btn) return;
       var layer = btn.dataset.layer;
       layerState[layer] = !layerState[layer];
-      localStorage.setItem("acupoints-layer-" + layer, layerState[layer] ? "on" : "off");
-      applyLayerState();
-    });
-
-    // Delay so body group is ready
-    setTimeout(applyLayerState, 800);
-  }
-
-})();
-
-  // ------------------------------------------------------------- layer toggles
-  var layerToggles = document.getElementById("layer-toggles");
-  if (layerToggles) {
-    var layerState = {
-      body:     localStorage.getItem("acupoints-layer-body")     !== "off",
-      meridians: localStorage.getItem("acupoints-layer-meridians") !== "off",
-      points:   localStorage.getItem("acupoints-layer-points")   !== "off"
-    };
-
-    function applyLayerState() {
-      // Body opacity
-      body.traverse(function (o) {
-        if (o.isMesh && o.material && o.material.color && o.material.color.getHex() !== 0 && !o.userData || o.userData && o.userData.kind !== "meridian" && o.userData.kind !== "point") return;
-        if (o.isMesh && o.material) {
-          // Body meshes: toggle opacity
-          if (o.parent === body || o.parent && o.parent.parent === body) {
-            o.material.transparent = !layerState.body;
-            o.material.opacity = layerState.body ? 1.0 : 0.15;
-          }
-        }
-      });
-      // Simpler approach: just toggle the body group opacity
-      body.traverse(function (o) {
-        if (o.isMesh && !o.userData) {
-          o.material.transparent = true;
-          o.material.opacity = layerState.body ? 1.0 : 0.18;
-          o.material.needsUpdate = true;
-        }
-      });
-
-      // Meridians
-      MERIDIANS.forEach(function (m) {
-        var v = visuals[m.id];
-        if (!v) return;
-        v.tubes.forEach(function (t) { t.visible = layerState.meridians; });
-        v.points.forEach(function (p) { p.visible = layerState.points; });
-      });
-
-      // Update toggle buttons
-      layerToggles.querySelectorAll(".layer-btn").forEach(function (btn) {
-        var layer = btn.dataset.layer;
-        btn.classList.toggle("active", layerState[layer]);
-      });
-    }
-
-    layerToggles.addEventListener("click", function (e) {
-      var btn = e.target.closest(".layer-btn");
-      if (!btn) return;
-      var layer = btn.dataset.layer;
-      layerState[layer] = !layerState[layer];
-      localStorage.setItem("acupoints-layer-" + layer, layerState[layer] ? "on" : "off");
+      try { localStorage.setItem("acupoints-layer-" + layer, layerState[layer] ? "on" : "off"); } catch (e2) {}
       applyLayerState();
     });
 

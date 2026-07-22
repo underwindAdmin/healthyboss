@@ -1,10 +1,11 @@
 {
   "name": "acupoints3d",
   "version": "1.0.0",
-  "description": "Acupoints 3D — interactive meridian atlas (Capacitor wrapper)",
+  "description": "Acupoints 3D \u2014 interactive meridian atlas (Capacitor wrapper)",
   "scripts": {
     "www:sync": "rm -rf www && mkdir -p www && cp index.html style.css style-a.css main.js data.js model-utils.js meridian-colors.js www/ && cp -R assets www/assets",
-    "sync": "npm run www:sync && cap sync"
+    "sync": "npm run www:sync && cap sync",
+    "bundle": "bash scripts/make-bundle.sh"
   },
   "dependencies": {
     "@capacitor/android": "^8.4.2",

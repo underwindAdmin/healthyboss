@@ -8,3 +8,5 @@ ios/
 *.bak
 *.bak2
 .verify-data.cjs
+.env
+*.zip
