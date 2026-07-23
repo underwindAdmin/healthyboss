@@ -648,7 +648,7 @@
   setUI(getUI(), false);
   // ------------------------------------------------------------ OTA update (Capgo)
 
-  var APP_WEB_VERSION = "1.5.7";
+  var APP_WEB_VERSION = "1.5.8";
   // Real-time manifest sources (no CDN cache). jsDelivr @main has a 12h cache
   // and github.io is unreachable without VPN in China, so use cache-free mirrors.
   var UPDATE_MANIFEST_URLS = [
@@ -912,7 +912,10 @@
           if (info && typeof info.percent === "number") {
             dlPercent = Math.round(info.percent);
             if (updBusy) {
-              refreshUpdBtn(t("Downloading…", CN_UI.updateDownloading) + " " + dlPercent + "%");
+              var pct = t("Downloading…", CN_UI.updateDownloading) + " " + dlPercent + "%";
+              refreshUpdBtn(pct);
+              var si = document.getElementById("si-update");
+              if (si) si.innerHTML = '<span class="si-icon">&#x1F504;</span><span class="si-label">' + pct + '</span>';
             }
           }
         });
