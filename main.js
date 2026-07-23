@@ -648,7 +648,7 @@
   setUI(getUI(), false);
   // ------------------------------------------------------------ OTA update (Capgo)
 
-  var APP_WEB_VERSION = "1.5.6";
+  var APP_WEB_VERSION = "1.5.7";
   // Real-time manifest sources (no CDN cache). jsDelivr @main has a 12h cache
   // and github.io is unreachable without VPN in China, so use cache-free mirrors.
   var UPDATE_MANIFEST_URLS = [
