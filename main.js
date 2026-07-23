@@ -654,7 +654,7 @@
   setUI(getUI(), false);
   // ------------------------------------------------------------ OTA update (Capgo)
 
-  var APP_WEB_VERSION = "1.5.2";
+  var APP_WEB_VERSION = "1.5.3";
   // Real-time manifest sources (no CDN cache). jsDelivr @main has a 12h cache
   // and github.io is unreachable without VPN in China, so use cache-free mirrors.
   var UPDATE_MANIFEST_URLS = [
@@ -662,13 +662,27 @@
     "https://gh-proxy.com/https://raw.githubusercontent.com/underwindAdmin/healthyboss/main/version.json"
   ];
 
+  function fetchWithTimeout(url, ms) {
+    var ctrl = typeof AbortController !== "undefined" ? new AbortController() : null;
+    var timer = setTimeout(function () { if (ctrl) ctrl.abort(); }, ms);
+    return fetch(url, ctrl ? { signal: ctrl.signal } : {}).then(function (res) {
+      clearTimeout(timer);
+      return res;
+    }, function (e) {
+      clearTimeout(timer);
+      if (e && e.name === "AbortError") throw new Error("timeout " + ms / 1000 + "s");
+      throw e;
+    });
+  }
+
   function fetchManifest() {
     // Query ALL sources in parallel and take the highest version:
     // stale CDN copies return HTTP 200 with an old manifest, so
-    // fallback-on-failure alone is not enough.
+    // fallback-on-failure alone is not enough. 10s timeout per source
+    // prevents a blackholed connection from hanging the check.
     var attempts = UPDATE_MANIFEST_URLS.map(function (url) {
       // "?t=" busts the 1-year browser cache header served by rawcdn
-      return fetch(url + "?t=" + Date.now()).then(function (res) {
+      return fetchWithTimeout(url + "?t=" + Date.now(), 10000).then(function (res) {
         if (!res.ok) throw new Error("HTTP " + res.status);
         return res.json().then(function (m) {
           if (!m.version || !m.zipUrl) throw new Error("Malformed manifest");
@@ -678,7 +692,7 @@
     });
     return Promise.allSettled(attempts).then(function (results) {
       var valid = [], errors = [];
-      results.forEach(function (r) {
+      results.forEach(function (r, i) {
         if (r.status === "fulfilled") valid.push(r.value);
         else errors.push(r.reason && r.reason.message ? r.reason.message : String(r.reason));
       });
@@ -750,7 +764,7 @@
         }
         refreshUpdBtn();
       } else {
-        flash(t("Already up to date", CN_UI.updateLatest));
+        flash(t("Already up to date", CN_UI.updateLatest) + " (v" + manifest.version + ")");
       }
     } catch (e) {
       var errMsg = (e && e.message) ? e.message : String(e);
