@@ -654,7 +654,7 @@
   setUI(getUI(), false);
   // ------------------------------------------------------------ OTA update (Capgo)
 
-  var APP_WEB_VERSION = "1.5.3";
+  var APP_WEB_VERSION = "1.5.4";
   // Real-time manifest sources (no CDN cache). jsDelivr @main has a 12h cache
   // and github.io is unreachable without VPN in China, so use cache-free mirrors.
   var UPDATE_MANIFEST_URLS = [
@@ -731,15 +731,32 @@
 
   var updBusy = false;
   var flashTimer = null;
+  var dlPercent = -1;
+
+  (function listenDownloadProgress() {
+    var up = getUpdater();
+    if (up && up.addListener) {
+      try {
+        up.addListener("download", function (info) {
+          if (info && typeof info.percent === "number") {
+            dlPercent = Math.round(info.percent);
+            if (updBusy) {
+              refreshUpdBtn(t("Downloading…", CN_UI.updateDownloading) + " " + dlPercent + "%");
+            }
+          }
+        });
+      } catch (e) {}
+    }
+  })();
 
   function refreshUpdBtn(msg) {
     updBtn.textContent = msg || t("↻ Update", CN_UI.updateCheck);
   }
 
-  function flash(msg) {
+  function flash(msg, ms) {
     refreshUpdBtn(msg);
     clearTimeout(flashTimer);
-    flashTimer = setTimeout(function () { refreshUpdBtn(); }, 3500);
+    flashTimer = setTimeout(function () { refreshUpdBtn(); }, ms || 3500);
   }
 
   updBtn.addEventListener("click", async function () {
@@ -756,8 +773,18 @@
         if (notes) msg += "\n\n" + notes;
         msg += "\n\n" + t("Download now?", CN_UI.updateNow);
         if (window.confirm(msg)) {
-          refreshUpdBtn(t("Downloading…", CN_UI.updateDownloading));
-          var bundle = await up.download({ version: manifest.version, url: manifest.zipUrl });
+          var zipUrls = manifest.zipUrls || [manifest.zipUrl];
+          var bundle = null, dlErrors = [];
+          for (var zi = 0; zi < zipUrls.length && !bundle; zi++) {
+            try {
+              dlPercent = -1;
+              refreshUpdBtn(t("Downloading…", CN_UI.updateDownloading) + (zipUrls.length > 1 ? " (" + (zi + 1) + "/" + zipUrls.length + ")" : ""));
+              bundle = await up.download({ version: manifest.version, url: zipUrls[zi] });
+            } catch (de) {
+              dlErrors.push(de && de.message ? de.message : String(de));
+            }
+          }
+          if (!bundle) throw new Error("download: " + dlErrors.join(" | "));
           if (window.confirm(t("Download complete. Restart to apply?", CN_UI.updateRestart))) {
             try { await up.set(bundle); return; } catch (e2) {}
           }
@@ -768,7 +795,7 @@
       }
     } catch (e) {
       var errMsg = (e && e.message) ? e.message : String(e);
-      flash(t("Update failed", CN_UI.updateFailed) + " (" + UPDATE_MANIFEST_URLS.length + " sources): " + errMsg);
+      flash(t("Update failed", CN_UI.updateFailed) + " (" + UPDATE_MANIFEST_URLS.length + " sources): " + errMsg, 8000);
       console.error("OTA update error:", e);
     }
     updBusy = false;

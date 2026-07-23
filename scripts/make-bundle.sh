@@ -70,6 +70,10 @@ case "${MODE}" in
 {
   "version": "${VERSION}",
   "zipUrl": "https://cdn.jsdelivr.net/gh/${REPO}@${COMMIT}/dist/${ZIP_NAME}",
+  "zipUrls": [
+    "https://cdn.jsdelivr.net/gh/${REPO}@${COMMIT}/dist/${ZIP_NAME}",
+    "https://gh-proxy.com/https://github.com/${REPO}/releases/download/web-v${VERSION}/${ZIP_NAME}"
+  ],
   "notes": "Web bundle v${VERSION}",
   "notesCn": "网页包 v${VERSION}",
   "minNativeVersion": "1.5.0"
@@ -79,6 +83,8 @@ VEOF
     cat version.json
     echo ""
     echo "NEXT: git add version.json && git commit && git push"
+    echo "      then create the release fallback asset:"
+    echo "      gh release create web-v${VERSION} dist/${ZIP_NAME} --title \"Web Bundle v${VERSION}\" --notes \"OTA web bundle v${VERSION}\""
     echo "      verify: curl https://rawcdn.githack.com/${REPO}/main/version.json"
     ;;
 
