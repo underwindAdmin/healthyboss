@@ -597,7 +597,7 @@
       "<p>" + t("Hover over a colored line on the body to highlight a meridian and see its point codes. Click a point (the small spheres) to read about it here, or click the line itself for an overview of the meridian.", CN_UI.welcomeP2) + "</p>" +
       "<p>" + t("You can also hover the legend on the left to locate a meridian, and click it to read its description.", CN_UI.welcomeP3) + "</p>" +
       '<p class="hint">' + t("Educational reference only — not a guide for treatment.", CN_UI.hint) + "</p>";
-    panelContent.innerHTML += '<p class="hint" style="opacity:0.5;margin-top:12px;">v' + APP_WEB_VERSION + '</p>';
+    panelContent.innerHTML += '<p class="hint" id="version-marker" style="opacity:0.5;margin-top:12px;">' + versionLabel() + '</p>';
   }
 
   // Create language toggle buttons
@@ -654,7 +654,7 @@
   setUI(getUI(), false);
   // ------------------------------------------------------------ OTA update (Capgo)
 
-  var APP_WEB_VERSION = "1.5.4";
+  var APP_WEB_VERSION = "1.5.5";
   // Real-time manifest sources (no CDN cache). jsDelivr @main has a 12h cache
   // and github.io is unreachable without VPN in China, so use cache-free mirrors.
   var UPDATE_MANIFEST_URLS = [
@@ -723,6 +723,27 @@
     }
     return 0;
   }
+
+  var bundleSource = null; // "builtin" | "ota" | null (unknown, e.g. browser)
+
+  function versionLabel() {
+    var s = "v" + APP_WEB_VERSION;
+    if (bundleSource === "ota") s += " · OTA";
+    else if (bundleSource === "builtin") s += " · " + t("built-in", "内置");
+    return s;
+  }
+
+  function applyBundleSource(b) {
+    bundleSource = (b && b.id && b.id !== "builtin") ? "ota" : "builtin";
+    var el = document.getElementById("version-marker");
+    if (el) el.textContent = versionLabel();
+    updBtn.title = t("Current version", CN_UI.updateVersion) + " " + versionLabel();
+  }
+
+  (function detectBundleSource() {
+    var up = getUpdater();
+    if (up && up.current) { up.current().then(applyBundleSource).catch(function () {}); }
+  })();
 
   var updBtn = document.createElement("button");
   updBtn.className = "lang-btn upd-btn";
