@@ -753,7 +753,16 @@
   var settingsPanel = null, settingsOverlay = null;
 
   function buildSettingsPanel() {
-    if (settingsPanel) return;
+    if (settingsPanel) {
+      return { toggle: function () {
+        var open = settingsPanel.classList.toggle("open");
+        settingsOverlay.classList.toggle("open", open);
+        if (open) {
+          var vi = document.getElementById("si-version");
+          if (vi) vi.innerHTML = '<span class="si-icon">&#x1F4E6;</span><span class="si-label">' + versionLabel() + '</span>';
+        }
+      }};
+    }
     var overlay = document.createElement("div");
     overlay.className = "settings-overlay";
     overlay.id = "settings-overlay";
