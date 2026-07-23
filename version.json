@@ -1,11 +1,11 @@
 {
-  "version": "1.5.7",
-  "zipUrl": "https://cdn.jsdelivr.net/gh/underwindAdmin/healthyboss@3c9817c183b31f9c0adf4f2577f9098850c368a6/dist/acupoints3d-web-v1.5.7.zip",
+  "version": "1.5.8",
+  "zipUrl": "https://cdn.jsdelivr.net/gh/underwindAdmin/healthyboss@9cf75096b6645fe53164ad466eab925d62cdc8c2/dist/acupoints3d-web-v1.5.8.zip",
   "zipUrls": [
-    "https://cdn.jsdelivr.net/gh/underwindAdmin/healthyboss@3c9817c183b31f9c0adf4f2577f9098850c368a6/dist/acupoints3d-web-v1.5.7.zip",
-    "https://gh-proxy.com/https://github.com/underwindAdmin/healthyboss/releases/download/web-v1.5.7/acupoints3d-web-v1.5.7.zip"
+    "https://cdn.jsdelivr.net/gh/underwindAdmin/healthyboss@9cf75096b6645fe53164ad466eab925d62cdc8c2/dist/acupoints3d-web-v1.5.8.zip",
+    "https://gh-proxy.com/https://github.com/underwindAdmin/healthyboss/releases/download/web-v1.5.8/acupoints3d-web-v1.5.8.zip"
   ],
-  "notes": "Web bundle v1.5.7",
-  "notesCn": "网页包 v1.5.7",
+  "notes": "Web bundle v1.5.8",
+  "notesCn": "网页包 v1.5.8",
   "minNativeVersion": "1.5.0"
 }
