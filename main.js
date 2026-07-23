@@ -603,24 +603,18 @@
   // Create language toggle buttons
   var langGroup = document.createElement("span");
   langGroup.id = "lang-group";
-
-  var cnBtn = document.createElement("button");
-  cnBtn.className = "lang-btn" + (lang === "cn" ? " lang-active" : "");
-  cnBtn.textContent = "中文";
-  cnBtn.addEventListener("click", function () {
-    if (lang !== "cn") { updateLangBtns("cn"); setLang("cn"); }
-  });
-
-  var enBtn = document.createElement("button");
-  enBtn.className = "lang-btn" + (lang === "en" ? " lang-active" : "");
-  enBtn.textContent = "EN";
-  enBtn.addEventListener("click", function () {
-    if (lang !== "en") { updateLangBtns("en"); setLang("en"); }
-  });
-
-  langGroup.appendChild(cnBtn);
-  langGroup.appendChild(enBtn);
   document.getElementById("scene").appendChild(langGroup);
+
+  // gear icon button — opens settings panel (replaces old cn/en/update buttons)
+  var gearBtn = document.createElement("button");
+  gearBtn.className = "lang-btn";
+  gearBtn.setAttribute("aria-label", "Settings");
+  gearBtn.innerHTML = '<svg viewBox="0 0 24 24" width="18" height="18"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>';
+  gearBtn.addEventListener("click", function () {
+    var p = buildSettingsPanel();
+    p.toggle();
+  });
+  langGroup.appendChild(gearBtn);
 
   // ------------------------------------------------------------ UI theme
 
@@ -654,7 +648,7 @@
   setUI(getUI(), false);
   // ------------------------------------------------------------ OTA update (Capgo)
 
-  var APP_WEB_VERSION = "1.5.5";
+  var APP_WEB_VERSION = "1.5.6";
   // Real-time manifest sources (no CDN cache). jsDelivr @main has a 12h cache
   // and github.io is unreachable without VPN in China, so use cache-free mirrors.
   var UPDATE_MANIFEST_URLS = [
@@ -714,6 +708,153 @@
     var up = getUpdater();
     if (up && up.notifyAppReady) { up.notifyAppReady().catch(function () {}); }
   })();
+
+  // ── OTA check logic (extracted so both old updBtn and new settings panel can call it) ──
+  function doCheckUpdate(onStatus) {
+    onStatus(t("Checking…", CN_UI.updateChecking));
+    return fetchManifest().then(function (manifest) {
+      if (compareVersions(manifest.version, APP_WEB_VERSION) <= 0) {
+        onStatus(t("Already up to date", CN_UI.updateLatest) + " (v" + manifest.version + ")");
+        return;
+      }
+      var notes = lang === "cn" ? (manifest.notesCn || manifest.notes || "") : (manifest.notes || "");
+      var msg = t("New version ", CN_UI.updateNew) + manifest.version;
+      if (notes) msg += "\n\n" + notes;
+      msg += "\n\n" + t("Download now?", CN_UI.updateNow);
+      if (!window.confirm(msg)) { onStatus(""); return; }
+      var zipUrls = manifest.zipUrls || [manifest.zipUrl];
+      var bundle = null, dlErrors = [];
+      function resolve(b) {
+        bundle = b;
+        if (!bundle) throw new Error("download: " + dlErrors.join(" | "));
+        if (window.confirm(t("Download complete. Restart to apply?", CN_UI.updateRestart))) {
+          getUpdater().set(bundle);
+        } else { onStatus(""); }
+      }
+      function tryNext(i) {
+        if (i >= zipUrls.length || bundle) { return resolve(bundle); }
+        dlPercent = -1;
+        onStatus(t("Downloading…", CN_UI.updateDownloading) + (zipUrls.length > 1 ? " (" + (i + 1) + "/" + zipUrls.length + ")" : ""));
+        return getUpdater().download({ version: manifest.version, url: zipUrls[i] }).then(function (b) {
+          resolve(b);
+        }).catch(function (de) {
+          dlErrors.push(de && de.message ? de.message : String(de));
+          return tryNext(i + 1);
+        });
+      }
+      return tryNext(0);
+    }).catch(function (e) {
+      var errMsg = (e && e.message) ? e.message : String(e);
+      onStatus(t("Update failed", CN_UI.updateFailed) + " (" + UPDATE_MANIFEST_URLS.length + " sources): " + errMsg);
+    });
+  }
+
+  // ── Settings panel ──
+  var settingsPanel = null, settingsOverlay = null;
+
+  function buildSettingsPanel() {
+    if (settingsPanel) return;
+    var overlay = document.createElement("div");
+    overlay.className = "settings-overlay";
+    overlay.id = "settings-overlay";
+    var panel = document.createElement("div");
+    panel.className = "settings-panel";
+    panel.id = "settings-panel";
+
+    var closeBtn = document.createElement("button");
+    closeBtn.className = "settings-close";
+    closeBtn.innerHTML = "&#x2715;";
+    panel.appendChild(closeBtn);
+
+    // language switcher rows
+    var cnItem = document.createElement("div");
+    cnItem.className = "settings-item" + (lang === "cn" ? " active" : "");
+    cnItem.innerHTML = '<span class="si-icon">&#x1F310;</span><span class="si-label">' + t("中文", "Chinese") + '</span>';
+    cnItem.id = "si-lang-cn";
+    cnItem.addEventListener("click", function () {
+      if (lang !== "cn") { setLang("cn"); updateSettingsPanelLang(); }
+    });
+    panel.appendChild(cnItem);
+
+    var enItem = document.createElement("div");
+    enItem.className = "settings-item" + (lang === "en" ? " active" : "");
+    enItem.innerHTML = '<span class="si-icon">&#x1F310;</span><span class="si-label">English</span>';
+    enItem.id = "si-lang-en";
+    enItem.addEventListener("click", function () {
+      if (lang !== "en") { setLang("en"); updateSettingsPanelLang(); }
+    });
+    panel.appendChild(enItem);
+
+    var div0 = document.createElement("hr");
+    div0.className = "settings-divider";
+    panel.appendChild(div0);
+
+    // version display
+    var verItem = document.createElement("div");
+    verItem.className = "settings-item si-static";
+    verItem.id = "si-version";
+    verItem.innerHTML = '<span class="si-icon">&#x1F4E6;</span><span class="si-label">' + versionLabel() + '</span>';
+    panel.appendChild(verItem);
+
+    var div1 = document.createElement("hr");
+    div1.className = "settings-divider";
+    panel.appendChild(div1);
+
+    // check update button
+    var updItem = document.createElement("div");
+    updItem.className = "settings-item";
+    updItem.id = "si-update";
+    updBusy = false;
+    updItem.textContent = "";
+    function updStatus(msg) {
+      updItem.innerHTML = '<span class="si-icon">&#x1F504;</span><span class="si-label">' + (msg || t("↻ Check update", CN_UI.updateCheck)) + '</span>';
+    }
+    updStatus();
+    updItem.addEventListener("click", function () {
+      if (updBusy) return;
+      updBusy = true;
+      doCheckUpdate(updStatus).finally(function () { updBusy = false; });
+    });
+    panel.appendChild(updItem);
+
+    var div2 = document.createElement("hr");
+    div2.className = "settings-divider";
+    panel.appendChild(div2);
+
+    // about row
+    var aboutItem = document.createElement("div");
+    aboutItem.className = "settings-item si-about";
+    aboutItem.id = "si-about";
+    aboutItem.textContent = t("acupoints3D · 3D Acupoint Visualization", "acupoints3D · 3D 人体穴位可视化工具");
+    panel.appendChild(aboutItem);
+
+    function toggle() {
+      var open = panel.classList.toggle("open");
+      overlay.classList.toggle("open", open);
+      if (open) {
+        // refresh version on each open
+        var vi = document.getElementById("si-version");
+        if (vi) vi.innerHTML = '<span class="si-icon">&#x1F4E6;</span><span class="si-label">' + versionLabel() + '</span>';
+      }
+    }
+    overlay.addEventListener("click", toggle);
+    closeBtn.addEventListener("click", toggle);
+
+    document.body.appendChild(overlay);
+    document.body.appendChild(panel);
+    settingsPanel = panel;
+    settingsOverlay = overlay;
+    return { toggle: toggle };
+  }
+
+  function updateSettingsPanelLang() {
+    var cn = document.getElementById("si-lang-cn");
+    var en = document.getElementById("si-lang-en");
+    if (cn) { cn.className = "settings-item" + (lang === "cn" ? " active" : ""); }
+    if (en) { en.className = "settings-item" + (lang === "en" ? " active" : ""); }
+    var about = document.getElementById("si-about");
+    if (about) about.textContent = t("acupoints3D · 3D Acupoint Visualization", "acupoints3D · 3D 人体穴位可视化工具");
+  }
 
   function compareVersions(a, b) {
     var pa = String(a).split("."), pb = String(b).split(".");
@@ -780,46 +921,15 @@
     flashTimer = setTimeout(function () { refreshUpdBtn(); }, ms || 3500);
   }
 
-  updBtn.addEventListener("click", async function () {
+  updBtn.addEventListener("click", function () {
     if (updBusy) return;
     var up = getUpdater();
     if (!up) { flash(t("Update requires the installed app", CN_UI.updateUnsupported)); return; }
     updBusy = true;
-    refreshUpdBtn(t("Checking…", CN_UI.updateChecking));
-    try {
-      var manifest = await fetchManifest();
-      if (compareVersions(manifest.version, APP_WEB_VERSION) > 0) {
-        var notes = lang === "cn" ? (manifest.notesCn || manifest.notes || "") : (manifest.notes || "");
-        var msg = t("New version ", CN_UI.updateNew) + manifest.version;
-        if (notes) msg += "\n\n" + notes;
-        msg += "\n\n" + t("Download now?", CN_UI.updateNow);
-        if (window.confirm(msg)) {
-          var zipUrls = manifest.zipUrls || [manifest.zipUrl];
-          var bundle = null, dlErrors = [];
-          for (var zi = 0; zi < zipUrls.length && !bundle; zi++) {
-            try {
-              dlPercent = -1;
-              refreshUpdBtn(t("Downloading…", CN_UI.updateDownloading) + (zipUrls.length > 1 ? " (" + (zi + 1) + "/" + zipUrls.length + ")" : ""));
-              bundle = await up.download({ version: manifest.version, url: zipUrls[zi] });
-            } catch (de) {
-              dlErrors.push(de && de.message ? de.message : String(de));
-            }
-          }
-          if (!bundle) throw new Error("download: " + dlErrors.join(" | "));
-          if (window.confirm(t("Download complete. Restart to apply?", CN_UI.updateRestart))) {
-            try { await up.set(bundle); return; } catch (e2) {}
-          }
-        }
-        refreshUpdBtn();
-      } else {
-        flash(t("Already up to date", CN_UI.updateLatest) + " (v" + manifest.version + ")");
-      }
-    } catch (e) {
-      var errMsg = (e && e.message) ? e.message : String(e);
-      flash(t("Update failed", CN_UI.updateFailed) + " (" + UPDATE_MANIFEST_URLS.length + " sources): " + errMsg, 8000);
-      console.error("OTA update error:", e);
-    }
-    updBusy = false;
+    doCheckUpdate(function (status) {
+      if (status) { status.length > 30 ? flash(status, 8000) : refreshUpdBtn(status); }
+      else refreshUpdBtn();
+    }).finally(function () { updBusy = false; });
   });
 
   langGroup.appendChild(updBtn);

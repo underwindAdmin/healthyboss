@@ -282,3 +282,65 @@ body[data-ui="a"] .layer-btn.active {
   body[data-ui="a"] .layer-toggles { margin: 0 0 8px; }
   body[data-ui="a"] .layer-btn { width: 28px; height: 24px; font-size: 12px; }
 }
+
+/* ── settings panel (Style A: dark medical) ── */
+.settings-overlay {
+  position: fixed; inset: 0; z-index: 1000;
+  background: rgba(0,0,0,0.55);
+  opacity: 0; pointer-events: none;
+  transition: opacity 0.25s;
+}
+.settings-overlay.open { opacity: 1; pointer-events: auto; }
+
+.settings-panel {
+  position: fixed; top: 0; right: 0; width: 280px; height: 100%;
+  z-index: 1001;
+  background: #1a1e26; color: #cdd6e0;
+  transform: translateX(100%);
+  transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+  padding: 60px 0 20px;
+  display: flex; flex-direction: column;
+  border-left: 1px solid rgba(255,255,255,0.06);
+}
+.settings-panel.open { transform: translateX(0); }
+
+.settings-close {
+  position: absolute; top: 14px; right: 16px;
+  background: none; border: none; color: #8899aa;
+  font-size: 20px; cursor: pointer; padding: 4px 8px;
+  line-height: 1;
+}
+.settings-close:hover { color: #fff; }
+
+.settings-item {
+  display: flex; align-items: center;
+  padding: 14px 20px; border: none; background: none;
+  color: #bcc6d0; font-size: 14px; cursor: pointer;
+  text-align: left; width: 100%; box-sizing: border-box;
+  transition: background 0.15s;
+}
+.settings-item:hover { background: rgba(255,255,255,0.04); }
+.settings-item:active { background: rgba(255,255,255,0.08); }
+
+.settings-item .si-icon { margin-right: 12px; font-size: 16px; width: 22px; text-align: center; flex-shrink: 0; }
+.settings-item .si-label { flex: 1; }
+
+.settings-item.active {
+  color: #78b4ff; background: rgba(120,180,255,0.08);
+}
+.settings-item.active::after {
+  content: "✓"; margin-left: auto; font-size: 14px; color: #78b4ff;
+}
+
+.settings-item.si-static {
+  cursor: default; pointer-events: none;
+  color: #5a6675; font-size: 13px;
+}
+.settings-item.si-static .si-label small {
+  display: block; font-size: 12px; color: #4a5460; margin-top: 2px;
+}
+
+.settings-item.si-about { cursor: default; color: #5a6675; font-size: 12px; line-height: 1.5; }
+.settings-divider {
+  margin: 6px 20px; border: none; border-top: 1px solid rgba(255,255,255,0.06);
+}
