@@ -654,8 +654,36 @@
   setUI(getUI(), false);
   // ------------------------------------------------------------ OTA update (Capgo)
 
-  var APP_WEB_VERSION = "1.5.1";
-  var UPDATE_MANIFEST_URL = "https://cdn.jsdelivr.net/gh/underwindAdmin/healthyboss@main/version.json";
+  var APP_WEB_VERSION = "1.5.2";
+  // Real-time manifest sources (no CDN cache). jsDelivr @main has a 12h cache
+  // and github.io is unreachable without VPN in China, so use cache-free mirrors.
+  var UPDATE_MANIFEST_URLS = [
+    "https://rawcdn.githack.com/underwindAdmin/healthyboss/main/version.json",
+    "https://gh-proxy.com/https://raw.githubusercontent.com/underwindAdmin/healthyboss/main/version.json"
+  ];
+
+  function fetchManifest() {
+    var errors = [];
+    var chain = Promise.reject();
+    UPDATE_MANIFEST_URLS.forEach(function (url) {
+      chain = chain.catch(function () {
+        // "?t=" busts the 1-year browser cache header served by rawcdn
+        return fetch(url + "?t=" + Date.now()).then(function (res) {
+          if (!res.ok) throw new Error("HTTP " + res.status);
+          return res.json().then(function (m) {
+            if (!m.version || !m.zipUrl) throw new Error("Malformed manifest");
+            return m;
+          });
+        }).catch(function (e) {
+          errors.push(e && e.message ? e.message : String(e));
+          throw e;
+        });
+      });
+    });
+    return chain.catch(function () {
+      throw new Error(errors.join(" | ") || "All sources failed");
+    });
+  }
 
   function getUpdater() {
     try {
@@ -704,10 +732,7 @@
     updBusy = true;
     refreshUpdBtn(t("Checking…", CN_UI.updateChecking));
     try {
-      var res = await fetch(UPDATE_MANIFEST_URL + "?t=" + Date.now());
-      if (!res.ok) throw new Error("HTTP " + res.status);
-      var manifest = await res.json();
-      if (!manifest.version || !manifest.zipUrl) throw new Error("Malformed manifest");
+      var manifest = await fetchManifest();
       if (compareVersions(manifest.version, APP_WEB_VERSION) > 0) {
         var notes = lang === "cn" ? (manifest.notesCn || manifest.notes || "") : (manifest.notes || "");
         var msg = t("New version ", CN_UI.updateNew) + manifest.version;
@@ -726,7 +751,7 @@
       }
     } catch (e) {
       var errMsg = (e && e.message) ? e.message : String(e);
-      flash(t("Update failed", CN_UI.updateFailed) + ": " + errMsg);
+      flash(t("Update failed", CN_UI.updateFailed) + " (" + UPDATE_MANIFEST_URLS.length + " sources): " + errMsg);
       console.error("OTA update error:", e);
     }
     updBusy = false;

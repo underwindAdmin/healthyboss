@@ -9,3 +9,6 @@ ios/
 *.bak2
 .verify-data.cjs
 .env
+
+# OTA bundle working copies (canonical copies live in dist/)
+/*.zip
