@@ -1,7 +1,7 @@
 {
-  "version": "1.5.2",
-  "zipUrl": "https://cdn.jsdelivr.net/gh/underwindAdmin/healthyboss@1ebc1914166ca44a1b9da34c35c1e6c2d981a574/dist/acupoints3d-web-v1.5.2.zip",
-  "notes": "Web bundle v1.5.2",
-  "notesCn": "网页包 v1.5.2",
+  "version": "1.5.3",
+  "zipUrl": "https://cdn.jsdelivr.net/gh/underwindAdmin/healthyboss@11595a0f97c32d7ee85e9add5d8dd353366af3db/dist/acupoints3d-web-v1.5.3.zip",
+  "notes": "Web bundle v1.5.3",
+  "notesCn": "网页包 v1.5.3",
   "minNativeVersion": "1.5.0"
 }
