@@ -663,25 +663,28 @@
   ];
 
   function fetchManifest() {
-    var errors = [];
-    var chain = Promise.reject();
-    UPDATE_MANIFEST_URLS.forEach(function (url) {
-      chain = chain.catch(function () {
-        // "?t=" busts the 1-year browser cache header served by rawcdn
-        return fetch(url + "?t=" + Date.now()).then(function (res) {
-          if (!res.ok) throw new Error("HTTP " + res.status);
-          return res.json().then(function (m) {
-            if (!m.version || !m.zipUrl) throw new Error("Malformed manifest");
-            return m;
-          });
-        }).catch(function (e) {
-          errors.push(e && e.message ? e.message : String(e));
-          throw e;
+    // Query ALL sources in parallel and take the highest version:
+    // stale CDN copies return HTTP 200 with an old manifest, so
+    // fallback-on-failure alone is not enough.
+    var attempts = UPDATE_MANIFEST_URLS.map(function (url) {
+      // "?t=" busts the 1-year browser cache header served by rawcdn
+      return fetch(url + "?t=" + Date.now()).then(function (res) {
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        return res.json().then(function (m) {
+          if (!m.version || !m.zipUrl) throw new Error("Malformed manifest");
+          return m;
         });
       });
     });
-    return chain.catch(function () {
-      throw new Error(errors.join(" | ") || "All sources failed");
+    return Promise.allSettled(attempts).then(function (results) {
+      var valid = [], errors = [];
+      results.forEach(function (r) {
+        if (r.status === "fulfilled") valid.push(r.value);
+        else errors.push(r.reason && r.reason.message ? r.reason.message : String(r.reason));
+      });
+      if (!valid.length) throw new Error(errors.join(" | ") || "All sources failed");
+      valid.sort(function (a, b) { return compareVersions(b.version, a.version); });
+      return valid[0];
     });
   }
 

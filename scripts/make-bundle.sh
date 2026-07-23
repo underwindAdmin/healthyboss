@@ -56,7 +56,7 @@ case "${MODE}" in
     ;;
 
   --manifest)
-    COMMIT=$(git rev-parse --short HEAD)
+    COMMIT=$(git rev-parse HEAD)
     echo "=== Generating version.json for v${VERSION} @ commit ${COMMIT} ==="
 
     # The zip must already exist in this commit, otherwise jsDelivr 404s forever
