@@ -344,3 +344,13 @@ body[data-ui="a"] .layer-btn.active {
 .settings-divider {
   margin: 6px 20px; border: none; border-top: 1px solid rgba(255,255,255,0.06);
 }
+
+/* ── gear notification badge ── */
+.gear-badge { position: relative; }
+.gear-badge::after {
+  content: ""; position: absolute; top: -3px; right: -3px;
+  width: 7px; height: 7px; background: #f43f5e; border-radius: 50%;
+  box-shadow: 0 0 0 2px #101216;
+  animation: gear-badge-pulse 2s infinite;
+}
+@keyframes gear-badge-pulse { 0%,100%{opacity:1} 50%{opacity:0.5} }

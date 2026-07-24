@@ -648,7 +648,7 @@
   setUI(getUI(), false);
   // ------------------------------------------------------------ OTA update (Capgo)
 
-  var APP_WEB_VERSION = "1.5.8";
+  var APP_WEB_VERSION = "1.5.9";
   // Real-time manifest sources (no CDN cache). jsDelivr @main has a 12h cache
   // and github.io is unreachable without VPN in China, so use cache-free mirrors.
   var UPDATE_MANIFEST_URLS = [
@@ -709,8 +709,34 @@
     if (up && up.notifyAppReady) { up.notifyAppReady().catch(function () {}); }
   })();
 
+  // ── silent background update check ──
+  var updateCheckDone = false;
+  var pendingUpdateVersion = null;
+
+  function checkForUpdateSilently() {
+    if (updateCheckDone) return;
+    updateCheckDone = true;
+    fetchManifest().then(function (m) {
+      if (compareVersions(m.version, APP_WEB_VERSION) > 0) {
+        pendingUpdateVersion = m.version;
+        gearBtn.classList.add("gear-badge");
+      }
+    }).catch(function () {
+      updateCheckDone = false; // allow retry next time
+    });
+  }
+
+  // try once after startup, then retry on settings open if needed
+  setTimeout(checkForUpdateSilently, 2500);
+
   // ── OTA check logic (extracted so both old updBtn and new settings panel can call it) ──
   function doCheckUpdate(onStatus) {
+    // user has seen the notification → clear badge immediately
+    // (set() reloads the WebView so clearing at the end would not execute)
+    pendingUpdateVersion = null;
+    gearBtn.classList.remove("gear-badge");
+    var hint = document.getElementById("si-update-hint");
+    if (hint) hint.style.display = "none";
     onStatus(t("Checking…", CN_UI.updateChecking));
     return fetchManifest().then(function (manifest) {
       if (compareVersions(manifest.version, APP_WEB_VERSION) <= 0) {
@@ -805,6 +831,14 @@
     verItem.innerHTML = '<span class="si-icon">&#x1F4E6;</span><span class="si-label">' + versionLabel() + '</span>';
     panel.appendChild(verItem);
 
+    // update hint (hidden unless pendingUpdateVersion is set)
+    var hintItem = document.createElement("div");
+    hintItem.className = "settings-item si-static";
+    hintItem.id = "si-update-hint";
+    hintItem.style.display = "none";
+    hintItem.innerHTML = '<span class="si-icon">&#x1F195;</span><span class="si-label" id="si-update-hint-text"></span>';
+    panel.appendChild(hintItem);
+
     var div1 = document.createElement("hr");
     div1.className = "settings-divider";
     panel.appendChild(div1);
@@ -844,6 +878,15 @@
         // refresh version on each open
         var vi = document.getElementById("si-version");
         if (vi) vi.innerHTML = '<span class="si-icon">&#x1F4E6;</span><span class="si-label">' + versionLabel() + '</span>';
+        // retry silent check if it failed earlier
+        if (!updateCheckDone) checkForUpdateSilently();
+        // show pending update if known
+        if (pendingUpdateVersion) {
+          var hi = document.getElementById("si-update-hint");
+          if (hi) hi.style.display = "";
+          var ht = document.getElementById("si-update-hint-text");
+          if (ht) ht.textContent = t("New version available: v", "新版本可用：v") + pendingUpdateVersion;
+        }
       }
     }
     overlay.addEventListener("click", toggle);
